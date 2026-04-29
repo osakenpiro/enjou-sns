@@ -57,13 +57,28 @@ body{background:var(--bg);color:var(--txt);font-family:'Noto Sans JP',sans-serif
 .custom-inputs input{width:60px;padding:4px 6px;border:1px solid rgba(255,255,255,.15);border-radius:5px;background:rgba(255,255,255,.05);color:var(--txt);font-size:.75rem;font-family:'Orbitron',sans-serif;text-align:center}
 
 /* Stage grid */
-.stage-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;max-width:700px;width:100%;margin-bottom:24px}
-.stage-card{padding:14px;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:10px;cursor:pointer;transition:all .2s;text-align:center}
+.stage-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;max-width:780px;width:100%;margin-bottom:24px}
+.stage-card{padding:14px;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:10px;cursor:pointer;transition:all .2s;text-align:center;position:relative}
 .stage-card:hover{border-color:rgba(255,255,255,.2);transform:translateY(-2px)}
 .stage-card .num{font-family:'Orbitron',sans-serif;font-size:1.2rem;font-weight:900;margin-bottom:3px}
 .stage-card .sname{font-size:.65rem;color:var(--dim);line-height:1.4}
+.stage-card .sgoal{font-size:.55rem;color:#666;margin-top:4px;letter-spacing:1px}
 .stage-card.defender-s .num{color:var(--water)}
 .stage-card.hacker-s .num{color:var(--hacker)}
+.stage-card.tutorial-s{border-color:rgba(6,214,160,.3)}
+.stage-card.tutorial-s .num{color:var(--brand)}
+.stage-card.tutorial-s::before{content:'🌱';position:absolute;top:6px;right:8px;font-size:.7rem}
+
+/* Stage tabs */
+.stage-tabs{display:flex;gap:6px;margin-bottom:16px;justify-content:center}
+.tab-btn{padding:8px 18px;border:1px solid rgba(255,255,255,.1);border-radius:8px;background:transparent;color:var(--dim);font-family:'Noto Sans JP',sans-serif;cursor:pointer;font-size:.75rem;transition:all .15s}
+.tab-btn:hover{color:var(--txt);border-color:rgba(255,255,255,.2)}
+.tab-btn.active{background:rgba(0,180,216,.1);border-color:var(--water);color:var(--water)}
+.tab-btn.active.tutorial{background:rgba(6,214,160,.1);border-color:var(--brand);color:var(--brand)}
+.tab-blurb{text-align:center;color:var(--dim);font-size:.7rem;margin-bottom:14px;max-width:600px;line-height:1.5}
+
+/* Stage hint detail */
+.stage-card .stip{font-size:.55rem;color:#5a8a6a;margin-top:6px;line-height:1.4;font-weight:400}
 
 /* Buttons */
 .btn{padding:10px 28px;border:1px solid rgba(255,255,255,.1);border-radius:8px;background:transparent;color:var(--txt);font-family:'Noto Sans JP',sans-serif;cursor:pointer;font-size:.8rem;transition:all .15s}
@@ -184,12 +199,12 @@ body{background:var(--bg);color:var(--txt);font-family:'Noto Sans JP',sans-serif
     <div class="card c-water" onclick="selectMode('defender')">
       <div class="icon">🛡️</div>
       <h3>防衛モード</h3>
-      <p>炎上から生き残れ！<br>GoLパターンで防衛線を構築</p>
+      <p>🌱 はじめての方はこちら<br>炎上から生き残れ！<br>チュートリアル3本付き</p>
     </div>
     <div class="card c-hack" onclick="selectMode('hacker')">
       <div class="icon">💀</div>
       <h3>ハッカーモード</h3>
-      <p>ブランドを炎上させろ！<br>GoLパターンで攻撃を仕掛ける</p>
+      <p>🔥 上級者向け<br>ブランドを炎上させろ！</p>
     </div>
     <div class="card c-ency" onclick="showEncyclopedia()">
       <div class="icon">📖</div>
@@ -240,6 +255,7 @@ body{background:var(--bg);color:var(--txt);font-family:'Noto Sans JP',sans-serif
 <div class="screen" id="stage-screen">
   <h2 id="stage-title">ステージ選択</h2>
   <div class="sub" id="stage-mode-label">DEFENDER MODE</div>
+  <div id="stage-tabs-host"></div>
   <div class="stage-grid" id="stage-grid"></div>
   <button class="btn" onclick="backToDifficulty()">← 戻る</button>
 </div>
@@ -279,7 +295,7 @@ body{background:var(--bg);color:var(--txt);font-family:'Noto Sans JP',sans-serif
 //  CONSTANTS
 // ================================================================
 const EMPTY=0,FLAME=1,WATER=2,BRAND=3,INFLUENCER=4,KEYNODE=5,OLDMEDIA=6,FROZEN=7;
-const COLS=60,ROWS=40;
+let COLS=60,ROWS=40; // Phase A
 const MAX_FLAME_AGE=75;
 const MAX_WATER_AGE=7; // Water fades quickly - strategic resource
 
@@ -331,19 +347,43 @@ const DIFFICULTIES={
 //  STAGES
 // ================================================================
 const STAGES={
+  // Phase B
+  tutorial:[
+    {id:1,name:'火を消す',desc:'水を1回置いて、火を消してみよう',
+      surviveGoal:5,gridW:12,gridH:8,
+      flamePattern:'tutorial1',brandPattern:'tutorial1',
+      influencers:0,oldmedia:0,keynodes:0,disasters:false,
+      tutorial:true,
+      tip:'▶1日進む を押す → 干渉日になる → 左から「ブロック」を選んで火の隣にクリック',
+      learnGoal:'水パターンで火を消すことを覚える'},
+    {id:2,name:'ブランドを守る',desc:'近づいてくる火からブランドを守れ',
+      surviveGoal:12,gridW:18,gridH:12,
+      flamePattern:'tutorial2',brandPattern:'tutorial2',
+      influencers:1,oldmedia:0,keynodes:0,disasters:false,
+      tutorial:true,
+      tip:'グライダー(斜め飛翔体)が左上から来る。ブランド(緑B)の前に水の壁を作ろう',
+      learnGoal:'ブロック/蜂の巣などの「静物」で防壁を構築'},
+    {id:3,name:'観察と干渉',desc:'観察→干渉のリズムを覚える',
+      surviveGoal:20,gridW:24,gridH:16,
+      flamePattern:'tutorial3',brandPattern:'tutorial3',
+      influencers:2,oldmedia:0,keynodes:0,disasters:false,
+      tutorial:true,
+      tip:'3日に1回干渉できる。コストを貯めて大きなパターンも置ける',
+      learnGoal:'コスト管理と干渉日の使い方を体感'},
+  ],
   defender:[
-    {id:1,name:'初めての炎上',desc:'複数の火種から生き残れ',surviveGoal:25,flamePattern:'small',brandPattern:'cluster',influencers:0,oldmedia:0,keynodes:0,disasters:false},
-    {id:2,name:'グライダー襲来',desc:'大量のグライダーが飛来する',surviveGoal:40,flamePattern:'gliders',brandPattern:'cluster',influencers:2,oldmedia:0,keynodes:0,disasters:false},
-    {id:3,name:'メディアの軸',desc:'オールドメディアが炎を助長する',surviveGoal:50,flamePattern:'medium',brandPattern:'cluster',influencers:2,oldmedia:3,keynodes:0,disasters:false},
-    {id:4,name:'防壁戦略',desc:'インフルエンサー壁を活用せよ',surviveGoal:60,flamePattern:'medium',brandPattern:'cluster',influencers:6,oldmedia:2,keynodes:1,disasters:false},
-    {id:5,name:'大炎上',desc:'Rペントミノが複数暴れ出す',surviveGoal:80,flamePattern:'rpento',brandPattern:'spread',influencers:4,oldmedia:3,keynodes:2,disasters:true},
-    {id:6,name:'メトセラの脅威',desc:'長期活動パターンとの総力戦',surviveGoal:120,flamePattern:'methuselah',brandPattern:'spread',influencers:4,oldmedia:4,keynodes:2,disasters:true},
-    {id:7,name:'全面戦争',desc:'あらゆる脅威が同時に襲来',surviveGoal:150,flamePattern:'chaos',brandPattern:'fortress',influencers:8,oldmedia:5,keynodes:3,disasters:true},
+    {id:1,name:'初めての炎上',desc:'複数の火種から生き残れ',surviveGoal:25,gridW:60,gridH:40,flamePattern:'small',brandPattern:'cluster',influencers:0,oldmedia:0,keynodes:0,disasters:false},
+    {id:2,name:'グライダー襲来',desc:'大量のグライダーが飛来する',surviveGoal:40,gridW:60,gridH:40,flamePattern:'gliders',brandPattern:'cluster',influencers:2,oldmedia:0,keynodes:0,disasters:false},
+    {id:3,name:'メディアの軸',desc:'オールドメディアが炎を助長する',surviveGoal:50,gridW:60,gridH:40,flamePattern:'medium',brandPattern:'cluster',influencers:2,oldmedia:3,keynodes:0,disasters:false},
+    {id:4,name:'防壁戦略',desc:'インフルエンサー壁を活用せよ',surviveGoal:60,gridW:60,gridH:40,flamePattern:'medium',brandPattern:'cluster',influencers:6,oldmedia:2,keynodes:1,disasters:false},
+    {id:5,name:'大炎上',desc:'Rペントミノが複数暴れ出す',surviveGoal:80,gridW:60,gridH:40,flamePattern:'rpento',brandPattern:'spread',influencers:4,oldmedia:3,keynodes:2,disasters:true},
+    {id:6,name:'メトセラの脅威',desc:'長期活動パターンとの総力戦',surviveGoal:120,gridW:60,gridH:40,flamePattern:'methuselah',brandPattern:'spread',influencers:4,oldmedia:4,keynodes:2,disasters:true},
+    {id:7,name:'全面戦争',desc:'あらゆる脅威が同時に襲来',surviveGoal:150,gridW:60,gridH:40,flamePattern:'chaos',brandPattern:'fortress',influencers:8,oldmedia:5,keynodes:3,disasters:true},
   ],
   hacker:[
-    {id:1,name:'小さな火種',desc:'ブランド1つを燃やせ',destroyGoal:.9,flamePattern:'none',brandPattern:'single',influencers:0,oldmedia:0,keynodes:0,defenseAI:false},
-    {id:2,name:'壁越え',desc:'インフルエンサーの壁を突破せよ',destroyGoal:.9,flamePattern:'none',brandPattern:'guarded',influencers:4,oldmedia:0,keynodes:0,defenseAI:true},
-    {id:3,name:'要塞攻略',desc:'堅固な防衛を崩せ',destroyGoal:.9,flamePattern:'none',brandPattern:'fortress',influencers:8,oldmedia:2,keynodes:0,defenseAI:true},
+    {id:1,name:'小さな火種',desc:'ブランド1つを燃やせ',destroyGoal:.9,gridW:60,gridH:40,flamePattern:'none',brandPattern:'single',influencers:0,oldmedia:0,keynodes:0,defenseAI:false},
+    {id:2,name:'壁越え',desc:'インフルエンサーの壁を突破せよ',destroyGoal:.9,gridW:60,gridH:40,flamePattern:'none',brandPattern:'guarded',influencers:4,oldmedia:0,keynodes:0,defenseAI:true},
+    {id:3,name:'要塞攻略',desc:'堅固な防衛を崩せ',destroyGoal:.9,gridW:60,gridH:40,flamePattern:'none',brandPattern:'fortress',influencers:8,oldmedia:2,keynodes:0,defenseAI:true},
   ],
 };
 
@@ -351,7 +391,8 @@ const STAGES={
 //  GAME STATE
 // ================================================================
 let grid=[],flameAge=[],waterAge=[],
-    mode='defender',difficulty='easy',currentStage=1,
+    mode='defender',currentTab='tutorial',
+    difficulty='easy',currentStage=1,
     turn=0,gameOver=false,
     interveneInterval=3,interveneCost=5,
     savedCost=0,currentCost=0,
@@ -416,6 +457,7 @@ function selectMode(m){
   document.getElementById('diff-mode-label').textContent=m==='defender'?'DEFENDER MODE':'HACKER MODE';
   document.getElementById('difficulty-screen').classList.add('show');
   selectedDiff=null;
+  currentTab=(m==='defender')?'tutorial':'main';
 }
 
 let selectedDiff=null;
@@ -444,15 +486,55 @@ function confirmDifficulty(){
 function showStageSelect(){
   const scr=document.getElementById('stage-screen');
   scr.classList.add('show');
-  const gr=document.getElementById('stage-grid');
-  gr.innerHTML='';
-  const stages=STAGES[mode]||STAGES.defender;
   const label=document.getElementById('stage-mode-label');
   label.textContent=mode==='defender'?'DEFENDER MODE':'HACKER MODE';
+  const tabsHost=document.getElementById('stage-tabs-host');
+  if(tabsHost){
+    if(mode==='defender'){
+      tabsHost.innerHTML=`
+        <div class="stage-tabs">
+          <button class="tab-btn tutorial ${currentTab==='tutorial'?'active':''}" onclick="switchStageTab('tutorial')">🌱 チュートリアル (3)</button>
+          <button class="tab-btn ${currentTab==='main'?'active':''}" onclick="switchStageTab('main')">🔥 メインステージ (7)</button>
+        </div>
+        <div class="tab-blurb" id="tab-blurb"></div>
+      `;
+    } else {
+      currentTab='main';
+      tabsHost.innerHTML='';
+    }
+  }
+  renderStageGrid();
+}
+
+function switchStageTab(t){
+  currentTab=t;
+  showStageSelect();
+}
+
+function renderStageGrid(){
+  const gr=document.getElementById('stage-grid');
+  gr.innerHTML='';
+  let stages;
+  if(mode==='defender'&&currentTab==='tutorial'){
+    stages=STAGES.tutorial;
+    const blurb=document.getElementById('tab-blurb');
+    if(blurb)blurb.innerHTML='初めての方は順番にプレイしてください。<br>各ステージで1つずつ概念を学べます';
+  } else {
+    stages=STAGES[mode]||STAGES.defender;
+    const blurb=document.getElementById('tab-blurb');
+    if(blurb)blurb.innerHTML='本番ステージ。火種パターンとサイズが段階的に強化されます';
+  }
   stages.forEach(s=>{
     const d=document.createElement('div');
-    d.className=`stage-card ${mode==='defender'?'defender-s':'hacker-s'}`;
-    d.innerHTML=`<div class="num">${s.id}</div><div class="sname">${s.name}</div>`;
+    const cls=s.tutorial?'tutorial-s':(mode==='defender'?'defender-s':'hacker-s');
+    d.className=`stage-card ${cls}`;
+    const goalText=s.surviveGoal?`${s.surviveGoal}日生存`:'全ブランド焼却';
+    const sizeText=s.gridW&&s.gridH?`${s.gridW}×${s.gridH}`:'60×40';
+    let inner=`<div class="num">${s.id}</div><div class="sname">${s.name}</div><div class="sgoal">${sizeText} / ${goalText}</div>`;
+    if(s.tutorial&&s.learnGoal){
+      inner+=`<div class="stip">${s.learnGoal}</div>`;
+    }
+    d.innerHTML=inner;
     d.onclick=()=>startStage(s.id);
     gr.appendChild(d);
   });
@@ -480,9 +562,20 @@ function retryStage(){
 // ================================================================
 function startStage(s){
   currentStage=s;
-  const stages=STAGES[mode]||STAGES.defender;
+  let stages;
+  if(currentTab==='tutorial')stages=STAGES.tutorial;
+  else stages=STAGES[mode]||STAGES.defender;
   stageData=stages.find(st=>st.id===s);
   if(!stageData)return;
+
+  COLS=stageData.gridW||60;
+  ROWS=stageData.gridH||40;
+
+  if(stageData.tutorial){
+    if(stageData.id===1){interveneInterval=1;interveneCost=3;}
+    else if(stageData.id===2){interveneInterval=2;interveneCost=4;}
+    else if(stageData.id===3){interveneInterval=3;interveneCost=6;}
+  }
 
   // Reset state
   turn=0;gameOver=false;phase='observe';
@@ -529,6 +622,12 @@ function startStage(s){
   draw();
 
   addLog('info',`ステージ${s}「${stageData.name}」開始！`);
+  if(stageData.tutorial&&stageData.tip){
+    addLog('phase',`💡 ${stageData.tip}`);
+  }
+  if(stageData.tutorial&&stageData.learnGoal){
+    addLog('info',`🎯 学習目標: ${stageData.learnGoal}`);
+  }
   addLog('phase',`👀 観察フェーズ: ${interveneInterval}日後に干渉可能`);
 }
 
@@ -543,6 +642,10 @@ function placeBrands(type){
   else if(type==='spread'){for(let i=0;i<5;i++)pts.push([randInt(8,ROWS-8),randInt(8,COLS-8)]);}
   else if(type==='guarded'){pts=[[cy,cx],[cy-1,cx],[cy+1,cx],[cy,cx-1],[cy,cx+1]];}
   else if(type==='fortress'){for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++)if(Math.abs(dy)+Math.abs(dx)<=3)pts.push([cy+dy,cx+dx]);}
+  // Phase B
+  else if(type==='tutorial1'){pts=[[cy,cx+3]];}
+  else if(type==='tutorial2'){pts=[[cy,cx+2],[cy,cx+3]];}
+  else if(type==='tutorial3'){pts=[[cy-1,cx],[cy,cx],[cy+1,cx]];}
   pts.forEach(([r,c])=>{if(r>=0&&r<ROWS&&c>=0&&c<COLS){grid[r][c]=BRAND;brandCells.push([r,c]);}});
 }
 
@@ -573,6 +676,22 @@ function placeKeynodes(n){
 
 function spawnFlamePattern(type){
   if(type==='none')return;
+  // Phase B
+  if(type==='tutorial1'){
+    [[5,2],[5,3],[5,4]].forEach(([r,c])=>{
+      if(r>=0&&r<ROWS&&c>=0&&c<COLS&&grid[r][c]===EMPTY){grid[r][c]=FLAME;flameAge[r][c]=0;}
+    });
+    return;
+  }
+  if(type==='tutorial2'){
+    placeGlider(2,1,FLAME);
+    return;
+  }
+  if(type==='tutorial3'){
+    placeRPentomino(7,4,FLAME);
+    placeGlider(2,18,FLAME);
+    return;
+  }
   if(type==='small'){
     // Multiple seeds from different directions
     placeRPentomino(randInt(2,8),randInt(2,12),FLAME);
