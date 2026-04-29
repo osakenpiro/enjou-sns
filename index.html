@@ -1,0 +1,1410 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>炎上！SNS v6 - Game of Life</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --flame:#ff2d2d;--flame-o:#ff6b35;--flame-y:#ffc53a;
+  --water:#00b4d8;--water-l:#90e0ef;--brand:#06d6a0;
+  --bg:#0a0a0f;--panel:#12121a;--txt:#e8e8ec;--dim:#6b6b80;
+  --purple:#9b5de5;--hacker:#39ff14;
+  --influ:#40b4fb;--keynode:#ffd700;--freeze:#80d8ff;
+  --oldmedia:#ff9100;--predict:rgba(255,120,0,.25);
+  --coin:#ffd700;
+}
+body{background:var(--bg);color:var(--txt);font-family:'Noto Sans JP',sans-serif;overflow:hidden;height:100vh;display:flex;flex-direction:column}
+
+/* ===== SCREENS ===== */
+.screen{position:fixed;inset:0;z-index:900;display:none;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);overflow-y:auto;padding:30px}
+.screen.show{display:flex}
+#title-screen{z-index:1000;display:flex}
+#title-screen.hidden{opacity:0;pointer-events:none;transition:opacity .5s}
+.screen h1{font-family:'Orbitron',sans-serif;font-size:2.8rem;font-weight:900;margin-bottom:4px}
+.screen h1.fire-title{background:linear-gradient(135deg,var(--flame-o),var(--flame));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.screen h2{font-family:'Orbitron',sans-serif;font-size:1.3rem;margin-bottom:6px}
+.screen .sub{color:var(--dim);font-size:.8rem;letter-spacing:3px;margin-bottom:30px}
+@keyframes pulse{0%{filter:brightness(1)}100%{filter:brightness(1.3)}}
+.screen h1{animation:pulse 2s infinite alternate}
+
+/* Cards */
+.card-row{display:flex;gap:14px;margin-bottom:20px;flex-wrap:wrap;justify-content:center}
+.card{padding:18px 16px;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:12px;cursor:pointer;transition:all .2s;text-align:center;min-width:180px}
+.card:hover{transform:translateY(-3px);border-color:rgba(255,255,255,.15);box-shadow:0 6px 25px rgba(0,0,0,.4)}
+.card .icon{font-size:2rem;margin-bottom:6px}
+.card h3{font-size:.9rem;margin-bottom:4px}
+.card p{font-size:.65rem;color:var(--dim);line-height:1.5}
+.card.c-water:hover{border-color:var(--water);box-shadow:0 6px 25px rgba(0,180,216,.15)}
+.card.c-hack:hover{border-color:var(--hacker);box-shadow:0 6px 25px rgba(57,255,20,.15)}
+.card.c-ency:hover{border-color:var(--flame-y);box-shadow:0 6px 25px rgba(255,197,58,.15)}
+.card.c-easy:hover{border-color:#06d6a0}
+.card.c-normal:hover{border-color:var(--water)}
+.card.c-hard:hover{border-color:var(--flame)}
+.card.c-custom:hover{border-color:var(--purple)}
+.card.selected{border-color:var(--water);background:rgba(0,180,216,.08)}
+
+/* Difficulty detail */
+.diff-detail{font-size:.7rem;color:var(--dim);margin-top:6px;line-height:1.6}
+.diff-detail span{color:var(--txt);font-weight:700}
+
+/* Custom difficulty inputs */
+.custom-inputs{display:none;gap:12px;margin:16px 0;flex-wrap:wrap;justify-content:center;align-items:center}
+.custom-inputs.show{display:flex}
+.custom-inputs label{font-size:.7rem;color:var(--dim);display:flex;align-items:center;gap:4px}
+.custom-inputs input{width:60px;padding:4px 6px;border:1px solid rgba(255,255,255,.15);border-radius:5px;background:rgba(255,255,255,.05);color:var(--txt);font-size:.75rem;font-family:'Orbitron',sans-serif;text-align:center}
+
+/* Stage grid */
+.stage-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;max-width:700px;width:100%;margin-bottom:24px}
+.stage-card{padding:14px;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:10px;cursor:pointer;transition:all .2s;text-align:center}
+.stage-card:hover{border-color:rgba(255,255,255,.2);transform:translateY(-2px)}
+.stage-card .num{font-family:'Orbitron',sans-serif;font-size:1.2rem;font-weight:900;margin-bottom:3px}
+.stage-card .sname{font-size:.65rem;color:var(--dim);line-height:1.4}
+.stage-card.defender-s .num{color:var(--water)}
+.stage-card.hacker-s .num{color:var(--hacker)}
+
+/* Buttons */
+.btn{padding:10px 28px;border:1px solid rgba(255,255,255,.1);border-radius:8px;background:transparent;color:var(--txt);font-family:'Noto Sans JP',sans-serif;cursor:pointer;font-size:.8rem;transition:all .15s}
+.btn:hover{background:rgba(255,255,255,.05)}
+.btn-primary{border-color:var(--water);color:var(--water)}
+.btn-primary:hover{background:rgba(0,180,216,.1)}
+
+/* ===== ENCYCLOPEDIA ===== */
+#encyclopedia-screen{z-index:950}
+.ency-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;max-width:900px;width:100%;margin:16px 0}
+.ency-card{background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:14px;transition:all .2s;cursor:pointer}
+.ency-card:hover{border-color:rgba(255,255,255,.15)}
+.ency-card h4{font-size:.8rem;margin-bottom:5px;display:flex;align-items:center;gap:5px}
+.ency-card .ency-desc{font-size:.65rem;color:var(--dim);line-height:1.5;margin-bottom:8px}
+.ency-canvas{width:100%;background:#0d0d15;border-radius:6px;image-rendering:pixelated}
+
+/* ===== GAME HEADER ===== */
+.game-header{display:flex;align-items:center;justify-content:space-between;padding:5px 14px;background:var(--panel);border-bottom:1px solid #1e1e2e;flex-shrink:0}
+.game-title{display:flex;align-items:center;gap:6px}
+.game-title h1{font-family:'Orbitron',sans-serif;font-size:1rem;font-weight:900;letter-spacing:2px;animation:none}
+.game-title.def h1{background:linear-gradient(135deg,var(--flame-o),var(--flame));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.game-title.hack h1{background:linear-gradient(135deg,var(--hacker),#00cc44);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.fire-icon{font-size:1.1rem;animation:flicker .3s infinite alternate}
+@keyframes flicker{0%{opacity:.8;transform:scale(1)}100%{opacity:1;transform:scale(1.1)}}
+.stats-bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.stat{display:flex;align-items:center;gap:3px;font-size:.68rem;padding:2px 7px;border-radius:5px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06)}
+.stat-label{color:var(--dim);font-size:.58rem}
+.stat-value{font-weight:700;font-family:'Orbitron',sans-serif;font-size:.72rem}
+
+/* ===== MAIN LAYOUT ===== */
+.game-main{display:flex;flex:1;overflow:hidden}
+#game-ui{display:none}.game-active #game-ui{display:flex;flex-direction:column;flex:1}
+
+/* ===== SIDEBAR ===== */
+.sidebar{width:260px;background:var(--panel);border-right:1px solid #1e1e2e;padding:8px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;flex-shrink:0}
+.panel{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:8px;padding:8px}
+.panel-title{font-size:.62rem;font-weight:700;color:var(--dim);letter-spacing:2px;text-transform:uppercase;margin-bottom:5px}
+
+/* Phase banner */
+.phase-banner{text-align:center;padding:10px;border-radius:8px;font-size:.85rem;font-weight:700;margin-bottom:2px}
+.phase-observe{background:rgba(255,197,58,.08);border:1px solid rgba(255,197,58,.2);color:var(--flame-y)}
+.phase-intervene{background:rgba(0,180,216,.08);border:1px solid rgba(0,180,216,.2);color:var(--water)}
+
+/* Pattern palette */
+.pattern-list{display:flex;flex-direction:column;gap:3px;max-height:200px;overflow-y:auto}
+.pat-btn{display:flex;align-items:center;gap:6px;padding:5px 7px;border:1px solid rgba(255,255,255,.08);border-radius:6px;background:rgba(255,255,255,.02);color:var(--txt);cursor:pointer;font-size:.68rem;font-family:'Noto Sans JP',sans-serif;transition:all .12s}
+.pat-btn:hover{background:rgba(255,255,255,.06)}
+.pat-btn.active{border-color:var(--water);background:rgba(0,180,216,.1)}
+.pat-btn .pat-cost{margin-left:auto;font-size:.6rem;color:var(--flame-y);font-family:'Orbitron',sans-serif}
+.pat-btn .pat-icon{font-size:.85rem}
+
+/* Items */
+.item-row{display:flex;gap:4px;flex-wrap:wrap}
+.item-btn{padding:4px 8px;border:1px solid rgba(255,255,255,.08);border-radius:5px;background:rgba(255,255,255,.02);color:var(--txt);cursor:pointer;font-size:.62rem;transition:all .12s;display:flex;align-items:center;gap:3px}
+.item-btn:hover{background:rgba(255,255,255,.06)}
+.item-btn.disabled{opacity:.3;pointer-events:none}
+.item-btn .item-count{font-family:'Orbitron',sans-serif;color:var(--coin);font-size:.6rem}
+
+/* Cell placement toggle */
+.cell-toggle{display:flex;align-items:center;gap:6px;font-size:.65rem;color:var(--dim);margin-top:4px;cursor:pointer}
+.cell-toggle input{accent-color:var(--water)}
+
+/* Event log */
+.event-log{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:2px;max-height:120px}
+.event-item{font-size:.6rem;padding:3px 6px;border-radius:4px;background:rgba(255,255,255,.02);line-height:1.4;animation:fadeIn .3s}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
+.ev-disaster{border-left:3px solid var(--purple);color:#c89bff}
+.ev-fire{border-left:3px solid var(--flame);color:#ff8a8a}
+.ev-water{border-left:3px solid var(--water);color:#90e0ef}
+.ev-key{border-left:3px solid var(--keynode);color:#ffe57f}
+.ev-info{border-left:3px solid var(--dim);color:var(--dim)}
+.ev-phase{border-left:3px solid var(--flame-y);color:var(--flame-y)}
+
+/* Controls */
+.controls-bar{display:flex;align-items:center;gap:8px;padding:4px 10px;background:var(--panel);border-top:1px solid #1e1e2e;flex-shrink:0}
+.controls-bar button{padding:4px 12px;border:1px solid rgba(255,255,255,.1);border-radius:5px;background:transparent;color:var(--txt);cursor:pointer;font-size:.7rem;font-family:'Noto Sans JP',sans-serif;transition:all .12s}
+.controls-bar button:hover{background:rgba(255,255,255,.06)}
+.controls-bar input[type=range]{flex:1;max-width:120px;accent-color:var(--flame-o)}
+.controls-bar .speed-label{font-size:.6rem;color:var(--dim)}
+.controls-bar .day-display{font-family:'Orbitron',sans-serif;font-size:.75rem;margin-left:auto}
+.confirm-btn{border-color:var(--water)!important;color:var(--water)!important}
+.confirm-btn:hover{background:rgba(0,180,216,.1)!important}
+
+/* Canvas area */
+.canvas-wrap{flex:1;display:flex;align-items:center;justify-content:center;position:relative;background:#08080d;overflow:hidden}
+#game-canvas{image-rendering:pixelated;cursor:crosshair}
+.prediction-overlay{position:absolute;top:8px;right:8px;display:flex;align-items:center;gap:4px;font-size:.6rem;color:var(--dim);background:rgba(0,0,0,.5);padding:3px 8px;border-radius:4px}
+.prediction-overlay input{accent-color:var(--flame-o)}
+
+/* Ghost preview */
+.ghost-info{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-size:.65rem;color:var(--water);background:rgba(0,0,0,.6);padding:3px 10px;border-radius:4px;pointer-events:none;white-space:nowrap}
+
+/* Next intervention countdown */
+.countdown-badge{font-family:'Orbitron',sans-serif;font-weight:700}
+.countdown-badge.soon{color:var(--flame-y)}
+.countdown-badge.now{color:var(--water);animation:pulse 1s infinite}
+
+/* Result overlay */
+#result-overlay{position:fixed;inset:0;z-index:800;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.8)}
+#result-overlay.show{display:flex}
+.result-card{background:var(--panel);border-radius:16px;padding:30px 40px;text-align:center;border:1px solid rgba(255,255,255,.08);max-width:380px}
+.result-card h2{font-family:'Orbitron',sans-serif;font-size:1.6rem;margin-bottom:8px}
+.result-card .result-msg{font-size:.8rem;color:var(--dim);margin-bottom:16px;line-height:1.6}
+.result-card .coin-reward{font-size:1rem;color:var(--coin);margin-bottom:16px}
+.result-card .result-btns{display:flex;gap:10px;justify-content:center}
+
+/* Meta coin display */
+.meta-coin{color:var(--coin);font-family:'Orbitron',sans-serif}
+</style>
+</head>
+<body>
+
+<!-- ===== TITLE SCREEN ===== -->
+<div class="screen show" id="title-screen">
+  <h1 class="fire-title">🔥 ENJOU SNS</h1>
+  <div class="sub">炎上シミュレーター v6 — GAME OF LIFE</div>
+  <div class="card-row">
+    <div class="card c-water" onclick="selectMode('defender')">
+      <div class="icon">🛡️</div>
+      <h3>防衛モード</h3>
+      <p>炎上から生き残れ！<br>GoLパターンで防衛線を構築</p>
+    </div>
+    <div class="card c-hack" onclick="selectMode('hacker')">
+      <div class="icon">💀</div>
+      <h3>ハッカーモード</h3>
+      <p>ブランドを炎上させろ！<br>GoLパターンで攻撃を仕掛ける</p>
+    </div>
+    <div class="card c-ency" onclick="showEncyclopedia()">
+      <div class="icon">📖</div>
+      <h3>パターン図鑑</h3>
+      <p>ライフゲームのパターンを学ぶ</p>
+    </div>
+  </div>
+  <div style="font-size:.65rem;color:var(--dim)">🪙 メタコイン: <span class="meta-coin" id="title-coins">0</span></div>
+</div>
+
+<!-- ===== DIFFICULTY SELECT ===== -->
+<div class="screen" id="difficulty-screen">
+  <h2 id="diff-title">難易度選択</h2>
+  <div class="sub" id="diff-mode-label">DEFENDER MODE</div>
+  <div class="card-row" id="diff-cards">
+    <div class="card c-easy" onclick="selectDifficulty('easy')">
+      <div class="icon">🌱</div>
+      <h3>イージー</h3>
+      <div class="diff-detail">干渉間隔: <span>3日</span><br>コスト: <span>5</span>/回</div>
+    </div>
+    <div class="card c-normal" onclick="selectDifficulty('normal')">
+      <div class="icon">⚔️</div>
+      <h3>ノーマル</h3>
+      <div class="diff-detail">干渉間隔: <span>10日</span><br>コスト: <span>10</span>/回</div>
+    </div>
+    <div class="card c-hard" onclick="selectDifficulty('hard')">
+      <div class="icon">🔥</div>
+      <h3>ハード</h3>
+      <div class="diff-detail">干渉間隔: <span>100日</span><br>コスト: <span>30</span>/回</div>
+    </div>
+    <div class="card c-custom" onclick="selectDifficulty('custom')">
+      <div class="icon">⚙️</div>
+      <h3>自由</h3>
+      <div class="diff-detail">自分で設定</div>
+    </div>
+  </div>
+  <div class="custom-inputs" id="custom-inputs">
+    <label>干渉間隔<input type="number" id="custom-interval" value="5" min="1" max="500">日</label>
+    <label>コスト<input type="number" id="custom-cost" value="8" min="1" max="100">/回</label>
+  </div>
+  <div class="card-row" style="margin-top:10px">
+    <button class="btn btn-primary" onclick="confirmDifficulty()">次へ →</button>
+    <button class="btn" onclick="backToTitle()">← 戻る</button>
+  </div>
+</div>
+
+<!-- ===== STAGE SELECT ===== -->
+<div class="screen" id="stage-screen">
+  <h2 id="stage-title">ステージ選択</h2>
+  <div class="sub" id="stage-mode-label">DEFENDER MODE</div>
+  <div class="stage-grid" id="stage-grid"></div>
+  <button class="btn" onclick="backToDifficulty()">← 戻る</button>
+</div>
+
+<!-- ===== ENCYCLOPEDIA ===== -->
+<div class="screen" id="encyclopedia-screen">
+  <h2 style="color:var(--flame-y)">📖 パターン図鑑</h2>
+  <div class="sub">CONWAY'S GAME OF LIFE PATTERNS</div>
+  <div class="ency-grid" id="ency-grid"></div>
+  <button class="btn" onclick="hideEncyclopedia()" style="margin-top:16px">← 戻る</button>
+</div>
+
+<!-- ===== GAME UI ===== -->
+<div id="game-ui">
+  <div class="game-header">
+    <div class="game-title" id="game-title-bar"><span class="fire-icon">🔥</span><h1>ENJOU SNS</h1></div>
+    <div class="stats-bar" id="stats-bar"></div>
+  </div>
+  <div class="game-main">
+    <div class="sidebar" id="sidebar"></div>
+    <div class="canvas-wrap">
+      <canvas id="game-canvas"></canvas>
+      <div class="prediction-overlay"><label><input type="checkbox" onchange="togglePredict(this.checked)"> 予測表示</label></div>
+      <div class="ghost-info" id="ghost-info" style="display:none"></div>
+    </div>
+  </div>
+  <div class="controls-bar" id="controls-bar"></div>
+</div>
+
+<!-- ===== RESULT OVERLAY ===== -->
+<div id="result-overlay">
+  <div class="result-card" id="result-card"></div>
+</div>
+
+<script>
+// ================================================================
+//  CONSTANTS
+// ================================================================
+const EMPTY=0,FLAME=1,WATER=2,BRAND=3,INFLUENCER=4,KEYNODE=5,OLDMEDIA=6,FROZEN=7;
+const COLS=60,ROWS=40;
+const MAX_FLAME_AGE=75;
+const MAX_WATER_AGE=7; // Water fades quickly - strategic resource
+
+// ================================================================
+//  COLORS
+// ================================================================
+function flameColor(age){
+  const t=Math.min(age/MAX_FLAME_AGE,1);
+  if(t<.3){const r=255,g=Math.floor(45+150*(t/.3)),b=Math.floor(45*(t/.3));return `rgb(${r},${g},${b})`;}
+  if(t<.7){const p=(t-.3)/.4;return `rgb(${Math.floor(255-100*p)},${Math.floor(195-145*p)},15)`;}
+  const p=(t-.7)/.3;return `rgb(${Math.floor(155-80*p)},${Math.floor(50-20*p)},${Math.floor(15+35*p)})`;
+}
+function waterColor(age){
+  const t=Math.min(age/MAX_WATER_AGE,1);
+  // Bright cyan → fading blue → dim
+  const r=Math.floor(30*t), g=Math.floor(180-80*t), b=Math.floor(235-60*t);
+  const a=1-t*.5;
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+// ================================================================
+//  PATTERNS (GoL)
+// ================================================================
+const PATTERNS=[
+  {name:'ブロック',type:'still',desc:'2×2の静物。動かない安定パターン。防壁として最適。',cells:[[0,0],[0,1],[1,0],[1,1]],gridW:2,gridH:2,cost:2},
+  {name:'蜂の巣',type:'still',desc:'6セルの静物。安定した防衛拠点。',cells:[[0,1],[1,0],[1,2],[2,0],[2,2],[3,1]],gridW:3,gridH:4,cost:3},
+  {name:'パン屋',type:'still',desc:'7セルの静物。大きめの安定壁。',cells:[[0,1],[1,0],[1,2],[2,0],[2,3],[3,1],[3,2]],gridW:4,gridH:4,cost:4},
+  {name:'ブリンカー',type:'oscillator',desc:'3セルの振動子。2周期で縦横に振動。攪乱に使える。',cells:[[0,0],[0,1],[0,2]],gridW:3,gridH:1,cost:2},
+  {name:'ヒキガエル',type:'oscillator',desc:'6セルの振動子。2周期。',cells:[[0,1],[0,2],[0,3],[1,0],[1,1],[1,2]],gridW:4,gridH:2,cost:3},
+  {name:'パルサー',type:'oscillator',desc:'3周期の美しい振動子。大きな安定領域を作る。',cells:[[0,2],[0,3],[0,4],[0,8],[0,9],[0,10],[2,0],[2,5],[2,7],[2,12],[3,0],[3,5],[3,7],[3,12],[4,0],[4,5],[4,7],[4,12],[5,2],[5,3],[5,4],[5,8],[5,9],[5,10],[7,2],[7,3],[7,4],[7,8],[7,9],[7,10],[8,0],[8,5],[8,7],[8,12],[9,0],[9,5],[9,7],[9,12],[10,0],[10,5],[10,7],[10,12],[12,2],[12,3],[12,4],[12,8],[12,9],[12,10]],gridW:13,gridH:13,cost:12},
+  {name:'グライダー',type:'spaceship',desc:'最小の宇宙船。斜めに移動する。攻撃の基本。',cells:[[0,1],[1,2],[2,0],[2,1],[2,2]],gridW:3,gridH:3,cost:3},
+  {name:'LWSS',type:'spaceship',desc:'軽量宇宙船。水平に高速移動。',cells:[[0,0],[0,3],[1,4],[2,0],[2,4],[3,1],[3,2],[3,3],[3,4]],gridW:5,gridH:4,cost:5},
+  {name:'Rペントミノ',type:'methuselah',desc:'5セルから大爆発。1103世代まで活動し多数の残骸を残す。',cells:[[0,1],[0,2],[1,0],[1,1],[2,1]],gridW:3,gridH:3,cost:4},
+  {name:'ダイハード',type:'methuselah',desc:'7セルが130世代後に完全消滅する珍しいパターン。',cells:[[0,6],[1,0],[1,1],[2,1],[2,5],[2,6],[2,7]],gridW:8,gridH:3,cost:4},
+  {name:'どんぐり',type:'methuselah',desc:'7セルから5206世代の長い進化。盤面を大きく変える。',cells:[[0,1],[1,3],[2,0],[2,1],[2,4],[2,5],[2,6]],gridW:7,gridH:3,cost:4},
+  {name:'単セル配置',type:'special',desc:'1セルずつ自由配置。上級者向け。',cells:[[0,0]],gridW:1,gridH:1,cost:1},
+];
+
+// ================================================================
+//  DIFFICULTY PRESETS
+// ================================================================
+const DIFFICULTIES={
+  easy:{interval:3,cost:5,label:'イージー'},
+  normal:{interval:10,cost:10,label:'ノーマル'},
+  hard:{interval:100,cost:30,label:'ハード'},
+};
+
+// ================================================================
+//  STAGES
+// ================================================================
+const STAGES={
+  defender:[
+    {id:1,name:'初めての炎上',desc:'複数の火種から生き残れ',surviveGoal:25,flamePattern:'small',brandPattern:'cluster',influencers:0,oldmedia:0,keynodes:0,disasters:false},
+    {id:2,name:'グライダー襲来',desc:'大量のグライダーが飛来する',surviveGoal:40,flamePattern:'gliders',brandPattern:'cluster',influencers:2,oldmedia:0,keynodes:0,disasters:false},
+    {id:3,name:'メディアの軸',desc:'オールドメディアが炎を助長する',surviveGoal:50,flamePattern:'medium',brandPattern:'cluster',influencers:2,oldmedia:3,keynodes:0,disasters:false},
+    {id:4,name:'防壁戦略',desc:'インフルエンサー壁を活用せよ',surviveGoal:60,flamePattern:'medium',brandPattern:'cluster',influencers:6,oldmedia:2,keynodes:1,disasters:false},
+    {id:5,name:'大炎上',desc:'Rペントミノが複数暴れ出す',surviveGoal:80,flamePattern:'rpento',brandPattern:'spread',influencers:4,oldmedia:3,keynodes:2,disasters:true},
+    {id:6,name:'メトセラの脅威',desc:'長期活動パターンとの総力戦',surviveGoal:120,flamePattern:'methuselah',brandPattern:'spread',influencers:4,oldmedia:4,keynodes:2,disasters:true},
+    {id:7,name:'全面戦争',desc:'あらゆる脅威が同時に襲来',surviveGoal:150,flamePattern:'chaos',brandPattern:'fortress',influencers:8,oldmedia:5,keynodes:3,disasters:true},
+  ],
+  hacker:[
+    {id:1,name:'小さな火種',desc:'ブランド1つを燃やせ',destroyGoal:.9,flamePattern:'none',brandPattern:'single',influencers:0,oldmedia:0,keynodes:0,defenseAI:false},
+    {id:2,name:'壁越え',desc:'インフルエンサーの壁を突破せよ',destroyGoal:.9,flamePattern:'none',brandPattern:'guarded',influencers:4,oldmedia:0,keynodes:0,defenseAI:true},
+    {id:3,name:'要塞攻略',desc:'堅固な防衛を崩せ',destroyGoal:.9,flamePattern:'none',brandPattern:'fortress',influencers:8,oldmedia:2,keynodes:0,defenseAI:true},
+  ],
+};
+
+// ================================================================
+//  GAME STATE
+// ================================================================
+let grid=[],flameAge=[],waterAge=[],
+    mode='defender',difficulty='easy',currentStage=1,
+    turn=0,gameOver=false,
+    interveneInterval=3,interveneCost=5,
+    savedCost=0,currentCost=0,
+    phase='observe', // 'observe' or 'intervene'
+    brandCells=[],influencerCells=[],fallenInfluencers=[],keynodeCells=[],oldmediaCells=[],
+    selectedPattern=null,placementType=WATER, // WATER for defender, FLAME for hacker
+    showPrediction=false,prediction=[],
+    autoPlay=false,autoTimer=null,speed=400,
+    metaCoins=parseInt(localStorage.getItem('enjou_metacoins')||'0'),
+    items={rewind:1,stop:1,costget:1},
+    history=[], // for rewind
+    stageData=null;
+
+const canvas=document.getElementById('game-canvas');
+const ctx=canvas.getContext('2d');
+
+// ================================================================
+//  ENCYCLOPEDIA
+// ================================================================
+function showEncyclopedia(){
+  document.getElementById('encyclopedia-screen').classList.add('show');
+  renderEncyclopedia();
+}
+function hideEncyclopedia(){document.getElementById('encyclopedia-screen').classList.remove('show');}
+
+function renderEncyclopedia(){
+  const g=document.getElementById('ency-grid');
+  g.innerHTML='';
+  PATTERNS.forEach((p,idx)=>{
+    if(p.type==='special') return;
+    const typeLabel={still:'静物',oscillator:'振動子',spaceship:'宇宙船',methuselah:'メトセラ'}[p.type]||p.type;
+    const typeColor={still:'#06d6a0',oscillator:'#00b4d8',spaceship:'#e040fb',methuselah:'#ff2d2d'}[p.type]||'#888';
+    const card=document.createElement('div');
+    card.className='ency-card';
+    card.innerHTML=`<h4><span style="color:${typeColor}">■</span> ${p.name} <span style="font-size:.6rem;color:var(--dim)">${typeLabel}</span> <span style="font-size:.6rem;color:var(--coin)">💰${p.cost}</span></h4><div class="ency-desc">${p.desc}</div><canvas class="ency-canvas" id="ency-cv-${idx}" width="${(p.gridW+2)*18}" height="${(p.gridH+2)*18}"></canvas>`;
+    g.appendChild(card);
+    setTimeout(()=>{
+      const cv=document.getElementById(`ency-cv-${idx}`);
+      if(!cv)return;
+      const cx=cv.getContext('2d');const s=18;
+      cx.fillStyle='#0d0d15';cx.fillRect(0,0,cv.width,cv.height);
+      cx.strokeStyle='rgba(255,255,255,.06)';cx.lineWidth=1;
+      for(let r=0;r<=p.gridH+2;r++){cx.beginPath();cx.moveTo(0,r*s);cx.lineTo((p.gridW+2)*s,r*s);cx.stroke();}
+      for(let c=0;c<=p.gridW+2;c++){cx.beginPath();cx.moveTo(c*s,0);cx.lineTo(c*s,(p.gridH+2)*s);cx.stroke();}
+      p.cells.forEach(([dr,dc])=>{
+        const x=(dc+1)*s+s/2, y=(dr+1)*s+s/2;
+        const grad=cx.createRadialGradient(x,y,0,x,y,s*.45);
+        grad.addColorStop(0,'#fff');grad.addColorStop(.3,'#ff6b35');grad.addColorStop(1,'rgba(255,45,45,.3)');
+        cx.fillStyle=grad;cx.beginPath();cx.arc(x,y,s*.4,0,Math.PI*2);cx.fill();
+      });
+    },50);
+  });
+}
+
+// ================================================================
+//  NAVIGATION
+// ================================================================
+function selectMode(m){
+  mode=m;
+  placementType=m==='defender'?WATER:FLAME;
+  document.getElementById('title-screen').classList.add('hidden');
+  document.getElementById('diff-mode-label').textContent=m==='defender'?'DEFENDER MODE':'HACKER MODE';
+  document.getElementById('difficulty-screen').classList.add('show');
+  selectedDiff=null;
+}
+
+let selectedDiff=null;
+function selectDifficulty(d){
+  selectedDiff=d;
+  document.querySelectorAll('#diff-cards .card').forEach(c=>c.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+  document.getElementById('custom-inputs').classList.toggle('show',d==='custom');
+}
+
+function confirmDifficulty(){
+  if(!selectedDiff){alert('難易度を選択してください');return;}
+  if(selectedDiff==='custom'){
+    interveneInterval=Math.max(1,parseInt(document.getElementById('custom-interval').value)||5);
+    interveneCost=Math.max(1,parseInt(document.getElementById('custom-cost').value)||8);
+    difficulty='custom';
+  } else {
+    const d=DIFFICULTIES[selectedDiff];
+    interveneInterval=d.interval;interveneCost=d.cost;
+    difficulty=selectedDiff;
+  }
+  document.getElementById('difficulty-screen').classList.remove('show');
+  showStageSelect();
+}
+
+function showStageSelect(){
+  const scr=document.getElementById('stage-screen');
+  scr.classList.add('show');
+  const gr=document.getElementById('stage-grid');
+  gr.innerHTML='';
+  const stages=STAGES[mode]||STAGES.defender;
+  const label=document.getElementById('stage-mode-label');
+  label.textContent=mode==='defender'?'DEFENDER MODE':'HACKER MODE';
+  stages.forEach(s=>{
+    const d=document.createElement('div');
+    d.className=`stage-card ${mode==='defender'?'defender-s':'hacker-s'}`;
+    d.innerHTML=`<div class="num">${s.id}</div><div class="sname">${s.name}</div>`;
+    d.onclick=()=>startStage(s.id);
+    gr.appendChild(d);
+  });
+}
+
+function backToTitle(){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('show'));
+  const ts=document.getElementById('title-screen');
+  ts.classList.remove('hidden');ts.style.display='flex';
+  document.getElementById('title-coins').textContent=metaCoins;
+  document.body.classList.remove('game-active');
+  stopAuto();
+}
+function backToDifficulty(){
+  document.getElementById('stage-screen').classList.remove('show');
+  document.getElementById('difficulty-screen').classList.add('show');
+}
+function retryStage(){
+  document.getElementById('result-overlay').classList.remove('show');
+  startStage(currentStage);
+}
+
+// ================================================================
+//  STAGE INITIALIZATION
+// ================================================================
+function startStage(s){
+  currentStage=s;
+  const stages=STAGES[mode]||STAGES.defender;
+  stageData=stages.find(st=>st.id===s);
+  if(!stageData)return;
+
+  // Reset state
+  turn=0;gameOver=false;phase='observe';
+  savedCost=0;currentCost=0;
+  brandCells=[];influencerCells=[];fallenInfluencers=[];keynodeCells=[];oldmediaCells=[];
+  selectedPattern=null;history=[];
+  autoPlay=false;autoTimer=null;
+
+  // Init grid
+  grid=[];flameAge=[];waterAge=[];
+  for(let r=0;r<ROWS;r++){
+    grid[r]=[];flameAge[r]=[];waterAge[r]=[];
+    for(let c=0;c<COLS;c++){grid[r][c]=EMPTY;flameAge[r][c]=0;waterAge[r][c]=0;}
+  }
+
+  // Place brands
+  placeBrands(stageData.brandPattern);
+
+  // Place influencers
+  placeInfluencers(stageData.influencers);
+
+  // Place old media
+  placeOldMedia(stageData.oldmedia||0);
+
+  // Place keynodes
+  placeKeynodes(stageData.keynodes||0);
+
+  // Spawn initial flames
+  spawnFlamePattern(stageData.flamePattern);
+
+  // Init prediction
+  prediction=[];for(let r=0;r<ROWS;r++){prediction[r]=[];for(let c=0;c<COLS;c++)prediction[r][c]=0;}
+
+  // Hide screens, show game
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('show'));
+  document.getElementById('title-screen').classList.add('hidden');
+  document.body.classList.add('game-active');
+
+  buildUI();
+  resizeCanvas();
+  updatePhaseUI();
+  computePrediction();
+  updateStats();
+  draw();
+
+  addLog('info',`ステージ${s}「${stageData.name}」開始！`);
+  addLog('phase',`👀 観察フェーズ: ${interveneInterval}日後に干渉可能`);
+}
+
+// ================================================================
+//  PLACEMENT HELPERS
+// ================================================================
+function placeBrands(type){
+  const cx=Math.floor(COLS/2),cy=Math.floor(ROWS/2);
+  let pts=[];
+  if(type==='single'){pts=[[cy,cx]];}
+  else if(type==='cluster'){for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++)if(Math.abs(dy)+Math.abs(dx)<=2)pts.push([cy+dy,cx+dx]);}
+  else if(type==='spread'){for(let i=0;i<5;i++)pts.push([randInt(8,ROWS-8),randInt(8,COLS-8)]);}
+  else if(type==='guarded'){pts=[[cy,cx],[cy-1,cx],[cy+1,cx],[cy,cx-1],[cy,cx+1]];}
+  else if(type==='fortress'){for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++)if(Math.abs(dy)+Math.abs(dx)<=3)pts.push([cy+dy,cx+dx]);}
+  pts.forEach(([r,c])=>{if(r>=0&&r<ROWS&&c>=0&&c<COLS){grid[r][c]=BRAND;brandCells.push([r,c]);}});
+}
+
+function placeInfluencers(n){
+  for(let i=0;i<n;i++){
+    let r,c,attempts=0;
+    do{r=randInt(3,ROWS-4);c=randInt(3,COLS-4);attempts++;}while(grid[r][c]!==EMPTY&&attempts<100);
+    if(grid[r][c]===EMPTY){grid[r][c]=INFLUENCER;influencerCells.push([r,c]);}
+  }
+}
+
+function placeOldMedia(n){
+  for(let i=0;i<n;i++){
+    let r,c,attempts=0;
+    do{r=randInt(2,ROWS-3);c=randInt(2,COLS-3);attempts++;}while(grid[r][c]!==EMPTY&&attempts<100);
+    if(grid[r][c]===EMPTY){grid[r][c]=OLDMEDIA;oldmediaCells.push([r,c]);}
+  }
+}
+
+function placeKeynodes(n){
+  const labels=['本社','データセンター','広報部'];
+  for(let i=0;i<n;i++){
+    let r,c,attempts=0;
+    do{r=randInt(3,ROWS-4);c=randInt(3,COLS-4);attempts++;}while(grid[r][c]!==EMPTY&&attempts<100);
+    if(grid[r][c]===EMPTY){grid[r][c]=KEYNODE;keynodeCells.push({r,c,label:labels[i]||`拠点${i+1}`,alive:true});}
+  }
+}
+
+function spawnFlamePattern(type){
+  if(type==='none')return;
+  if(type==='small'){
+    // Multiple seeds from different directions
+    placeRPentomino(randInt(2,8),randInt(2,12),FLAME);
+    placeGlider(randInt(1,6),randInt(COLS-15,COLS-5),FLAME);
+    placeGoLSeed(randInt(ROWS-10,ROWS-4),randInt(2,15),FLAME);
+  } else if(type==='gliders'){
+    // Swarm of gliders from multiple angles
+    for(let i=0;i<6;i++) placeGlider(randInt(1,8),randInt(2,COLS-6),FLAME);
+    placeRPentomino(randInt(3,10),randInt(COLS/2-3,COLS/2+3),FLAME);
+  } else if(type==='medium'){
+    placeRPentomino(randInt(3,10),randInt(5,15),FLAME);
+    placeRPentomino(randInt(3,10),randInt(COLS-18,COLS-8),FLAME);
+    for(let i=0;i<4;i++) placeGlider(randInt(1,ROWS/2),randInt(2,COLS-6),FLAME);
+  } else if(type==='rpento'){
+    // Multiple R-pentominoes = massive chaos
+    placeRPentomino(randInt(3,8),randInt(8,18),FLAME);
+    placeRPentomino(randInt(3,8),randInt(COLS-20,COLS-10),FLAME);
+    placeRPentomino(randInt(ROWS/2-3,ROWS/2+3),randInt(COLS/2-5,COLS/2+5),FLAME);
+    for(let i=0;i<3;i++) placeGlider(randInt(1,6),randInt(2,COLS-6),FLAME);
+  } else if(type==='methuselah'){
+    placeAcorn(randInt(5,12),randInt(5,15),FLAME);
+    placeRPentomino(randInt(3,10),randInt(COLS-15,COLS-5),FLAME);
+    for(let i=0;i<5;i++) placeGlider(randInt(1,ROWS-6),randInt(2,COLS-6),FLAME);
+  } else if(type==='chaos'){
+    // Total war: multiple methuselah + gliders from all sides
+    placeRPentomino(randInt(3,8),randInt(5,15),FLAME);
+    placeRPentomino(randInt(3,8),randInt(COLS-18,COLS-8),FLAME);
+    placeAcorn(randInt(ROWS-12,ROWS-5),randInt(5,COLS/2),FLAME);
+    for(let i=0;i<8;i++) placeGlider(randInt(1,ROWS-6),randInt(2,COLS-6),FLAME);
+    // Edge gliders
+    for(let i=0;i<4;i++){
+      const side=randInt(0,3);
+      let r,c;
+      if(side===0){r=0;c=randInt(0,COLS-4);}
+      else if(side===1){r=ROWS-4;c=randInt(0,COLS-4);}
+      else if(side===2){r=randInt(0,ROWS-4);c=0;}
+      else{r=randInt(0,ROWS-4);c=COLS-4;}
+      placeGlider(r,c,FLAME);
+    }
+  }
+}
+
+function placeGoLSeed(r,c,type){
+  // R-pentomino as default seed
+  const pat=[[0,1],[0,2],[1,0],[1,1],[2,1]];
+  pat.forEach(([dr,dc])=>{
+    const nr=r+dr,nc=c+dc;
+    if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&grid[nr][nc]===EMPTY){
+      grid[nr][nc]=type;
+      if(type===FLAME)flameAge[nr][nc]=0;
+      else waterAge[nr][nc]=0;
+    }
+  });
+}
+
+function placeGlider(r,c,type){
+  const pat=[[0,1],[1,2],[2,0],[2,1],[2,2]];
+  pat.forEach(([dr,dc])=>{
+    const nr=r+dr,nc=c+dc;
+    if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&grid[nr][nc]===EMPTY){
+      grid[nr][nc]=type;
+      if(type===FLAME)flameAge[nr][nc]=0;
+      else waterAge[nr][nc]=0;
+    }
+  });
+}
+
+function placeRPentomino(r,c,type){
+  [[0,1],[0,2],[1,0],[1,1],[2,1]].forEach(([dr,dc])=>{
+    const nr=r+dr,nc=c+dc;
+    if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&grid[nr][nc]===EMPTY){
+      grid[nr][nc]=type;if(type===FLAME)flameAge[nr][nc]=0;else waterAge[nr][nc]=0;
+    }
+  });
+}
+
+function placeAcorn(r,c,type){
+  [[0,1],[1,3],[2,0],[2,1],[2,4],[2,5],[2,6]].forEach(([dr,dc])=>{
+    const nr=r+dr,nc=c+dc;
+    if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&grid[nr][nc]===EMPTY){
+      grid[nr][nc]=type;if(type===FLAME)flameAge[nr][nc]=0;else waterAge[nr][nc]=0;
+    }
+  });
+}
+
+function placeLWSS(r,c,type){
+  [[0,0],[0,3],[1,4],[2,0],[2,4],[3,1],[3,2],[3,3],[3,4]].forEach(([dr,dc])=>{
+    const nr=r+dr,nc=c+dc;
+    if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&grid[nr][nc]===EMPTY){
+      grid[nr][nc]=type;if(type===FLAME)flameAge[nr][nc]=0;else waterAge[nr][nc]=0;
+    }
+  });
+}
+
+// ================================================================
+//  GoL HELPERS
+// ================================================================
+function countN(r,c,type){
+  let n=0;
+  for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+    if(dr===0&&dc===0)continue;
+    const nr=r+dr,nc=c+dc;
+    if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&grid[nr][nc]===type)n++;
+  }
+  return n;
+}
+
+function countNTypes(r,c,types){
+  let n=0;
+  for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+    if(dr===0&&dc===0)continue;
+    const nr=r+dr,nc=c+dc;
+    if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&types.includes(grid[nr][nc]))n++;
+  }
+  return n;
+}
+
+// Effective flame neighbors (includes old media phantom)
+function effectiveFn(r,c){
+  let fn=countN(r,c,FLAME);
+  // Old media adds +1 phantom flame for each media on axis within 5 cells
+  for(const [mr,mc] of oldmediaCells){
+    if(mr===r&&mc===c)continue;
+    if(mr===r&&Math.abs(mc-c)<=5)fn++;
+    else if(mc===c&&Math.abs(mr-r)<=5)fn++;
+  }
+  return fn;
+}
+
+// Effective water neighbors (symmetric with fire)
+function effectiveWn(r,c){
+  return countN(r,c,WATER);
+}
+
+function isNearFallenInfluencer(r,c){
+  for(const [ir,ic] of fallenInfluencers){
+    if(Math.abs(r-ir)<=2&&Math.abs(c-ic)<=2)return true;
+  }
+  return false;
+}
+
+function countAll(type){let n=0;for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)if(grid[r][c]===type)n++;return n;}
+
+// ================================================================
+//  SIMULATION (CORE GoL)
+// ================================================================
+function nextTurn(){
+  if(gameOver)return;
+
+  // Save history for rewind
+  if(turn%interveneInterval===0){
+    history.push({
+      grid:grid.map(r=>[...r]),
+      flameAge:flameAge.map(r=>[...r]),
+      waterAge:waterAge.map(r=>[...r]),
+      turn:turn,
+      savedCost:savedCost,
+      brandCells:brandCells.map(a=>[...a]),
+      influencerCells:influencerCells.map(a=>[...a]),
+      fallenInfluencers:fallenInfluencers.map(a=>[...a]),
+    });
+    if(history.length>5)history.shift();
+  }
+
+  turn++;
+
+  // Disasters (defender mode, later stages)
+  if(mode==='defender'&&stageData.disasters&&turn>0&&turn%30===0){
+    triggerDisaster();
+  }
+
+  // Defense AI (hacker mode)
+  if(mode==='hacker'&&stageData.defenseAI&&turn%5===0){
+    runDefenseAI();
+  }
+
+  // === GoL SIMULATION ===
+  const ng=grid.map(r=>[...r]);
+  const nfa=flameAge.map(r=>[...r]);
+  const nwa=waterAge.map(r=>[...r]);
+
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const cell=grid[r][c];
+      const fn=countN(r,c,FLAME);
+      const efn=effectiveFn(r,c);
+      const wn=countN(r,c,WATER);
+
+      // ---- FROZEN: immovable, skip ----
+      if(cell===FROZEN)continue;
+
+      // ---- FLAME: GoL rules + water cancel + age death ----
+      if(cell===FLAME){
+        nfa[r][c]=flameAge[r][c]+1;
+        // Cancel: adjacent water kills flame
+        if(wn>=1){ng[r][c]=EMPTY;nfa[r][c]=0;
+          // Also mark adjacent waters for removal (mutual cancel)
+        }
+        // Age death
+        else if(nfa[r][c]>=MAX_FLAME_AGE){ng[r][c]=EMPTY;nfa[r][c]=0;}
+        // GoL: underpop or overpop (using effective neighbors)
+        else if(efn<2||efn>3){ng[r][c]=EMPTY;nfa[r][c]=0;}
+        // else: survive
+      }
+      // ---- WATER: GoL rules + fire cancel + age death ----
+      else if(cell===WATER){
+        nwa[r][c]=waterAge[r][c]+1;
+        // Cancel: adjacent fire kills water
+        if(fn>=1){ng[r][c]=EMPTY;nwa[r][c]=0;}
+        // Age death
+        else if(nwa[r][c]>=MAX_WATER_AGE){ng[r][c]=EMPTY;nwa[r][c]=0;}
+        // GoL: underpop or overpop
+        else if(wn<2||wn>3){ng[r][c]=EMPTY;nwa[r][c]=0;}
+        // else: survive
+      }
+      // ---- BRAND: ignitable ----
+      else if(cell===BRAND){
+        if(efn>=2){ng[r][c]=FLAME;nfa[r][c]=0;}
+      }
+      // ---- KEYNODE: ignitable ----
+      else if(cell===KEYNODE){
+        if(efn>=2){
+          ng[r][c]=FLAME;nfa[r][c]=0;
+          const kn=keynodeCells.find(k=>k.r===r&&k.c===c);
+          if(kn&&kn.alive){kn.alive=false;addLog('key',`💥 ${kn.label} が炎上！`);}
+        }
+      }
+      // ---- INFLUENCER: wall, breaks at fn>=4 ----
+      else if(cell===INFLUENCER){
+        if(fn>=4){
+          ng[r][c]=FLAME;nfa[r][c]=0;
+          fallenInfluencers.push([r,c]);
+          influencerCells=influencerCells.filter(([ir,ic])=>!(ir===r&&ic===c));
+          addLog('fire','💔 インフルエンサー陥落！周辺が燃えやすくなった');
+        }
+      }
+      // ---- OLDMEDIA: indestructible, passive ----
+      else if(cell===OLDMEDIA){/* phantom via effectiveFn */}
+      // ---- EMPTY: birth ----
+      else if(cell===EMPTY){
+        const nearFallen=isNearFallenInfluencer(r,c);
+
+        // Fire birth: GoL rule (efn===3) or fallen zone (efn>=2)
+        const fireBirth=efn===3||(nearFallen&&efn>=2);
+        // Water birth: GoL rule (wn===3)
+        const waterBirth=wn===3;
+
+        if(fireBirth&&waterBirth){
+          // Both want to birth → cancel, stays empty
+        } else if(fireBirth){
+          ng[r][c]=FLAME;nfa[r][c]=0;
+        } else if(waterBirth){
+          ng[r][c]=WATER;nwa[r][c]=0;
+        }
+      }
+    }
+  }
+
+  // Second pass: mutual cancellation (fire adjacent to water → both die)
+  // Handle cells where fire survived but has water neighbor that also survived
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      if(ng[r][c]===FLAME){
+        // Check if any neighbor in new grid is water
+        for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+          if(dr===0&&dc===0)continue;
+          const nr=r+dr,nc=c+dc;
+          if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&ng[nr][nc]===WATER){
+            // Cancel both
+            ng[r][c]=EMPTY;nfa[r][c]=0;
+            ng[nr][nc]=EMPTY;nwa[nr][nc]=0;
+          }
+        }
+      }
+    }
+  }
+
+  grid=ng;flameAge=nfa;waterAge=nwa;
+
+  // Update brand list
+  brandCells=brandCells.filter(([r,c])=>grid[r][c]===BRAND);
+
+  // Check phase transition
+  checkPhaseTransition();
+  checkEnd();
+  computePrediction();
+  updateStats();
+  updatePhaseUI();
+  draw();
+}
+
+// ================================================================
+//  PHASE MANAGEMENT
+// ================================================================
+function checkPhaseTransition(){
+  if(gameOver)return;
+  if(phase==='observe'&&turn>0&&turn%interveneInterval===0){
+    // Intervention day!
+    phase='intervene';
+    currentCost=interveneCost+savedCost;
+    savedCost=0;
+    stopAuto();
+    addLog('phase',`🛠️ 干渉日！ コスト: ${currentCost} を使って盤面に干渉できます`);
+  }
+}
+
+function confirmIntervention(){
+  // Save unused cost
+  savedCost=currentCost;
+  currentCost=0;
+  phase='observe';
+  selectedPattern=null;
+  addLog('phase',`👀 観察フェーズ再開。残コスト${savedCost}は次回に持ち越し`);
+  updatePhaseUI();
+  buildSidebar();
+  draw();
+}
+
+// ================================================================
+//  ITEMS
+// ================================================================
+function useRewind(){
+  if(items.rewind<=0||history.length===0)return;
+  items.rewind--;
+  const h=history.pop();
+  grid=h.grid;flameAge=h.flameAge;waterAge=h.waterAge;
+  turn=h.turn;savedCost=h.savedCost;
+  brandCells=h.brandCells;influencerCells=h.influencerCells;
+  fallenInfluencers=h.fallenInfluencers;
+  phase='observe';
+  addLog('info','⏪ 巻き戻し！前の干渉日に戻った');
+  updatePhaseUI();buildSidebar();computePrediction();updateStats();draw();
+}
+
+function useStop(){
+  if(items.stop<=0||phase!=='observe')return;
+  items.stop--;
+  stopAuto();
+  phase='intervene';
+  currentCost=interveneCost+savedCost;savedCost=0;
+  addLog('phase','⏹️ ストップ！特別干渉日を開始');
+  updatePhaseUI();buildSidebar();draw();
+}
+
+function useCostGet(){
+  if(items.costget<=0||phase!=='intervene')return;
+  items.costget--;
+  currentCost+=5;
+  addLog('info','💰 コストゲット！コスト+5');
+  updateStats();buildSidebar();
+}
+
+// ================================================================
+//  DEFENSE AI (hacker mode)
+// ================================================================
+function runDefenseAI(){
+  // Simple: place water near brands
+  brandCells.forEach(([br,bc])=>{
+    const fn=countN(br,bc,FLAME);
+    if(fn>=1){
+      for(let dr=-2;dr<=2;dr++)for(let dc=-2;dc<=2;dc++){
+        const nr=br+dr,nc=bc+dc;
+        if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&grid[nr][nc]===EMPTY&&Math.random()<.15){
+          grid[nr][nc]=WATER;waterAge[nr][nc]=0;
+        }
+      }
+    }
+  });
+}
+
+// ================================================================
+//  DISASTERS
+// ================================================================
+function triggerDisaster(){
+  const types=['glider_storm','rpento_drop','edge_attack'];
+  const t=types[randInt(0,types.length-1)];
+  if(t==='glider_storm'){
+    for(let i=0;i<3;i++) placeGlider(randInt(0,5),randInt(0,COLS-5),FLAME);
+    addLog('disaster','🌪️ グライダー嵐！上方から炎のグライダーが飛来');
+  } else if(t==='rpento_drop'){
+    placeRPentomino(randInt(2,ROWS/2),randInt(2,COLS-5),FLAME);
+    addLog('disaster','💣 Rペントミノ投下！大爆発の予感');
+  } else {
+    for(let i=0;i<4;i++){
+      const side=randInt(0,3);
+      let r,c;
+      if(side===0){r=0;c=randInt(0,COLS-4);}
+      else if(side===1){r=ROWS-4;c=randInt(0,COLS-4);}
+      else if(side===2){r=randInt(0,ROWS-4);c=0;}
+      else{r=randInt(0,ROWS-4);c=COLS-4;}
+      placeGlider(r,c,FLAME);
+    }
+    addLog('disaster','🔥 四方から炎が！端からグライダー襲来');
+  }
+}
+
+// ================================================================
+//  WIN/LOSE CHECK
+// ================================================================
+function checkEnd(){
+  if(gameOver)return;
+  if(mode==='defender'){
+    // Win: survive to goal
+    if(turn>=stageData.surviveGoal){
+      gameOver=true;showResult(true);return;
+    }
+    // Lose: all brands destroyed
+    if(brandCells.length===0){
+      gameOver=true;showResult(false);return;
+    }
+  } else {
+    // Win: destroy 90% brands
+    const totalBrands=brandCells.length;
+    const origCount=STAGES.hacker.find(s=>s.id===currentStage);
+    // Count remaining vs placed
+    if(brandCells.length===0||(countAll(BRAND)===0)){
+      gameOver=true;showResult(true);return;
+    }
+    // Lose: too many turns without progress
+    if(turn>500){
+      gameOver=true;showResult(false);return;
+    }
+  }
+}
+
+function showResult(win){
+  stopAuto();
+  const coins=win?(mode==='defender'?10+currentStage*5:15+currentStage*5):2;
+  metaCoins+=coins;
+  localStorage.setItem('enjou_metacoins',metaCoins);
+
+  const card=document.getElementById('result-card');
+  card.innerHTML=`
+    <h2 style="color:${win?'var(--brand)':'var(--flame)'}">${win?'🎉 CLEAR!':'💀 GAME OVER'}</h2>
+    <div class="result-msg">${win?`ステージ${currentStage}クリア！${turn}日間生き延びた！`:'炎上に飲み込まれた...'}</div>
+    <div class="coin-reward">🪙 +${coins} メタコイン (合計: ${metaCoins})</div>
+    <div class="result-btns">
+      <button class="btn btn-primary" onclick="retryStage()">🔄 リトライ</button>
+      <button class="btn" onclick="document.getElementById('result-overlay').classList.remove('show');backToTitle()">🏠 タイトルへ</button>
+    </div>
+  `;
+  document.getElementById('result-overlay').classList.add('show');
+}
+
+// ================================================================
+//  PREDICTION
+// ================================================================
+function computePrediction(){
+  if(!showPrediction)return;
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    prediction[r][c]=0;
+    if(grid[r][c]===EMPTY){
+      const efn=effectiveFn(r,c);
+      const wn=countN(r,c,WATER);
+      const nearFallen=isNearFallenInfluencer(r,c);
+      if(efn===3||(nearFallen&&efn>=2))prediction[r][c]=1; // fire birth
+      else if(wn===3)prediction[r][c]=2; // water birth
+    } else if(grid[r][c]===FLAME){
+      const efn=effectiveFn(r,c);
+      const wn=countN(r,c,WATER);
+      if(wn>=1||flameAge[r][c]+1>=MAX_FLAME_AGE||efn<2||efn>3)prediction[r][c]=-1; // will die
+    } else if(grid[r][c]===WATER){
+      const fn=countN(r,c,FLAME);
+      const wn=countN(r,c,WATER);
+      if(fn>=1||waterAge[r][c]+1>=MAX_WATER_AGE||wn<2||wn>3)prediction[r][c]=-2; // will die
+    }
+  }
+}
+function togglePredict(v){showPrediction=v;computePrediction();draw();}
+
+// ================================================================
+//  UI BUILD
+// ================================================================
+function buildUI(){
+  buildSidebar();
+  buildControls();
+  // Set title bar
+  const tb=document.getElementById('game-title-bar');
+  tb.className=`game-title ${mode==='defender'?'def':'hack'}`;
+}
+
+function buildSidebar(){
+  const sb=document.getElementById('sidebar');
+  sb.innerHTML='';
+
+  // Phase banner
+  const banner=document.createElement('div');
+  if(phase==='observe'){
+    const nextInt=interveneInterval-turn%interveneInterval;
+    banner.className='phase-banner phase-observe';
+    banner.innerHTML=`👀 観察フェーズ<br><span style="font-size:.7rem">干渉まで <span class="countdown-badge ${nextInt<=3?'soon':''}">${nextInt}</span> 日</span>`;
+  } else {
+    banner.className='phase-banner phase-intervene';
+    banner.innerHTML=`🛠️ 干渉フェーズ<br><span style="font-size:.7rem">残りコスト: <span class="countdown-badge now">${currentCost}</span></span>`;
+  }
+  sb.appendChild(banner);
+
+  // Pattern palette (only during intervention)
+  if(phase==='intervene'){
+    const panel=document.createElement('div');
+    panel.className='panel';
+    panel.innerHTML=`<div class="panel-title">📐 パターン配置</div><div class="pattern-list" id="pattern-list"></div>`;
+    sb.appendChild(panel);
+
+    const list=panel.querySelector('.pattern-list');
+    const typeIcon=mode==='defender'?'💧':'🔥';
+    PATTERNS.forEach((p,idx)=>{
+      if(p.cost>currentCost&&p.type!=='special')return; // Don't show unaffordable
+      const btn=document.createElement('div');
+      btn.className=`pat-btn ${selectedPattern===idx?'active':''}`;
+      btn.innerHTML=`<span class="pat-icon">${typeIcon}</span> ${p.name} <span class="pat-cost">💰${p.cost}</span>`;
+      btn.onclick=()=>{selectedPattern=idx;buildSidebar();draw();};
+      list.appendChild(btn);
+    });
+
+    // Confirm button
+    const confirmPanel=document.createElement('div');
+    confirmPanel.className='panel';
+    confirmPanel.innerHTML=`<button class="btn confirm-btn" onclick="confirmIntervention()" style="width:100%;font-size:.75rem">✅ 干渉終了（残コスト持ち越し）</button>`;
+    sb.appendChild(confirmPanel);
+  }
+
+  // Items panel
+  const itemPanel=document.createElement('div');
+  itemPanel.className='panel';
+  itemPanel.innerHTML=`<div class="panel-title">🎒 アイテム</div><div class="item-row">
+    <div class="item-btn ${items.rewind<=0?'disabled':''}" onclick="useRewind()">⏪ 巻き戻し <span class="item-count">×${items.rewind}</span></div>
+    <div class="item-btn ${items.stop<=0||phase!=='observe'?'disabled':''}" onclick="useStop()">⏹️ ストップ <span class="item-count">×${items.stop}</span></div>
+    <div class="item-btn ${items.costget<=0||phase!=='intervene'?'disabled':''}" onclick="useCostGet()">💰 コスト+ <span class="item-count">×${items.costget}</span></div>
+  </div>`;
+  sb.appendChild(itemPanel);
+
+  // Encyclopedia quick access
+  const encycPanel=document.createElement('div');
+  encycPanel.className='panel';
+  encycPanel.innerHTML=`<div class="panel-title">📖 パターン図鑑</div><button class="btn" onclick="showEncyclopedia()" style="width:100%;font-size:.7rem;padding:6px">図鑑を開く</button>`;
+  sb.appendChild(encycPanel);
+
+  // Event log
+  const logPanel=document.createElement('div');
+  logPanel.className='panel';
+  logPanel.style.flex='1';
+  logPanel.innerHTML=`<div class="panel-title">📋 ログ</div><div class="event-log" id="event-log"></div>`;
+  sb.appendChild(logPanel);
+}
+
+function buildControls(){
+  const cb=document.getElementById('controls-bar');
+  cb.innerHTML=`
+    <button id="btn-step" onclick="stepForward()">▶ 1日進む</button>
+    <button id="btn-auto" onclick="toggleAuto()">⏩ 自動</button>
+    <span class="speed-label">速度</span>
+    <input type="range" min="50" max="1000" value="${1100-speed}" oninput="updateSpeed(+this.value)">
+    <button class="btn" onclick="backToTitle()" style="font-size:.65rem">🏠</button>
+    <span class="day-display">Day <span id="day-num">0</span></span>
+  `;
+}
+
+function updatePhaseUI(){
+  // Update banner without full rebuild
+  const dayEl=document.getElementById('day-num');
+  if(dayEl)dayEl.textContent=turn;
+}
+
+function updateStats(){
+  const sb=document.getElementById('stats-bar');
+  if(!sb)return;
+  const fc=countAll(FLAME),wc=countAll(WATER),bc=brandCells.length;
+  const diff=DIFFICULTIES[difficulty];
+  const diffLabel=diff?diff.label:(difficulty==='custom'?'自由':'');
+
+  let html=`
+    <div class="stat"><span class="stat-label">🔥</span><span class="stat-value">${fc}</span></div>
+    <div class="stat"><span class="stat-label">💧</span><span class="stat-value">${wc}</span></div>
+    <div class="stat"><span class="stat-label">🏢</span><span class="stat-value">${bc}</span></div>
+    <div class="stat"><span class="stat-label">📅</span><span class="stat-value">${turn}</span></div>
+  `;
+  if(mode==='defender'){
+    html+=`<div class="stat"><span class="stat-label">🎯</span><span class="stat-value">${stageData?stageData.surviveGoal:'?'}日</span></div>`;
+  }
+  html+=`<div class="stat"><span class="stat-label">🪙</span><span class="stat-value meta-coin">${metaCoins}</span></div>`;
+  html+=`<div class="stat"><span class="stat-label">難易度</span><span class="stat-value">${diffLabel}</span></div>`;
+  sb.innerHTML=html;
+}
+
+// ================================================================
+//  CONTROLS
+// ================================================================
+function stepForward(){
+  if(phase==='intervene'){
+    // During intervention, stepping means confirming
+    return;
+  }
+  nextTurn();
+  // Rebuild sidebar if phase changed
+  if(phase==='intervene')buildSidebar();
+}
+
+function toggleAuto(){
+  if(phase==='intervene')return;
+  autoPlay=!autoPlay;
+  const b=document.getElementById('btn-auto');
+  if(autoPlay){
+    if(b)b.textContent='⏸ 停止';
+    autoTimer=setInterval(()=>{
+      if(gameOver||phase==='intervene'){stopAuto();if(phase==='intervene')buildSidebar();return;}
+      nextTurn();
+      if(phase==='intervene')buildSidebar();
+    },speed);
+  } else {stopAuto();}
+}
+function stopAuto(){autoPlay=false;if(autoTimer)clearInterval(autoTimer);autoTimer=null;const b=document.getElementById('btn-auto');if(b)b.textContent='⏩ 自動';}
+function updateSpeed(v){speed=1100-v;if(autoPlay){clearInterval(autoTimer);autoTimer=setInterval(()=>{if(gameOver||phase==='intervene'){stopAuto();if(phase==='intervene')buildSidebar();return;}nextTurn();if(phase==='intervene')buildSidebar();},speed);}}
+
+// ================================================================
+//  CANVAS & DRAWING
+// ================================================================
+function resizeCanvas(){
+  const wrap=canvas.parentElement;
+  const maxW=wrap.clientWidth-20,maxH=wrap.clientHeight-20;
+  const cellW=Math.floor(maxW/COLS),cellH=Math.floor(maxH/ROWS);
+  const cs=Math.max(6,Math.min(cellW,cellH));
+  canvas.width=COLS*cs;canvas.height=ROWS*cs;
+  canvas.style.width=canvas.width+'px';canvas.style.height=canvas.height+'px';
+  draw();
+}
+window.addEventListener('resize',resizeCanvas);
+
+let ghostCells=[]; // preview of pattern placement
+
+function draw(){
+  const cs=Math.floor(canvas.width/COLS);
+  ctx.fillStyle='#08080d';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // Grid lines
+  ctx.strokeStyle='rgba(255,255,255,.03)';ctx.lineWidth=1;
+  for(let r=0;r<=ROWS;r++){ctx.beginPath();ctx.moveTo(0,r*cs);ctx.lineTo(COLS*cs,r*cs);ctx.stroke();}
+  for(let c=0;c<=COLS;c++){ctx.beginPath();ctx.moveTo(c*cs,0);ctx.lineTo(c*cs,ROWS*cs);ctx.stroke();}
+
+  // Prediction underlay
+  if(showPrediction){
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+      if(prediction[r][c]===1){ctx.fillStyle='rgba(255,100,0,.15)';ctx.fillRect(c*cs,r*cs,cs,cs);}
+      else if(prediction[r][c]===-1){ctx.fillStyle='rgba(255,0,0,.1)';ctx.fillRect(c*cs,r*cs,cs,cs);}
+      else if(prediction[r][c]===2){ctx.fillStyle='rgba(0,180,216,.15)';ctx.fillRect(c*cs,r*cs,cs,cs);}
+      else if(prediction[r][c]===-2){ctx.fillStyle='rgba(0,100,200,.1)';ctx.fillRect(c*cs,r*cs,cs,cs);}
+    }
+  }
+
+  // Fallen influencer zones
+  for(const [ir,ic] of fallenInfluencers){
+    for(let dr=-2;dr<=2;dr++)for(let dc=-2;dc<=2;dc++){
+      const nr=ir+dr,nc=ic+dc;
+      if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS){
+        ctx.fillStyle='rgba(255,50,50,.06)';ctx.fillRect(nc*cs,nr*cs,cs,cs);
+      }
+    }
+  }
+
+  // Old media axis highlight
+  for(const [mr,mc] of oldmediaCells){
+    ctx.fillStyle='rgba(255,145,0,.04)';
+    for(let d=-5;d<=5;d++){
+      if(mr+d>=0&&mr+d<ROWS)ctx.fillRect(mc*cs,(mr+d)*cs,cs,cs);
+      if(mc+d>=0&&mc+d<COLS)ctx.fillRect((mc+d)*cs,mr*cs,cs,cs);
+    }
+  }
+
+  // Cells
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const cell=grid[r][c];
+      const x=c*cs,y=r*cs;
+
+      if(cell===FLAME){
+        const age=flameAge[r][c];
+        ctx.fillStyle=flameColor(age);
+        ctx.fillRect(x+1,y+1,cs-2,cs-2);
+        // Age indicator for old flames
+        if(age>50){
+          ctx.fillStyle='rgba(0,0,0,.5)';ctx.font=`${Math.max(7,cs*.45)}px Orbitron`;ctx.textAlign='center';
+          ctx.fillText(MAX_FLAME_AGE-age,x+cs/2,y+cs*.7);
+        }
+      }
+      else if(cell===WATER){
+        ctx.fillStyle=waterColor(waterAge[r][c]);
+        ctx.fillRect(x+1,y+1,cs-2,cs-2);
+        if(waterAge[r][c]>3){
+          ctx.fillStyle='rgba(0,0,0,.5)';ctx.font=`${Math.max(7,cs*.45)}px Orbitron`;ctx.textAlign='center';
+          ctx.fillText(MAX_WATER_AGE-waterAge[r][c],x+cs/2,y+cs*.7);
+        }
+      }
+      else if(cell===BRAND){
+        ctx.fillStyle='#06d6a0';ctx.fillRect(x+1,y+1,cs-2,cs-2);
+        ctx.fillStyle='rgba(255,255,255,.3)';ctx.font=`${Math.max(6,cs*.4)}px sans-serif`;ctx.textAlign='center';
+        ctx.fillText('B',x+cs/2,y+cs*.65);
+      }
+      else if(cell===INFLUENCER){
+        ctx.fillStyle='#40b4fb';ctx.fillRect(x+1,y+1,cs-2,cs-2);
+        ctx.strokeStyle='rgba(255,255,255,.3)';ctx.lineWidth=1;ctx.strokeRect(x+1,y+1,cs-2,cs-2);
+      }
+      else if(cell===KEYNODE){
+        ctx.fillStyle='#ffd700';ctx.fillRect(x+1,y+1,cs-2,cs-2);
+        ctx.fillStyle='rgba(0,0,0,.4)';ctx.font=`${Math.max(6,cs*.4)}px sans-serif`;ctx.textAlign='center';
+        ctx.fillText('K',x+cs/2,y+cs*.65);
+      }
+      else if(cell===OLDMEDIA){
+        ctx.fillStyle='#ff9100';ctx.fillRect(x+1,y+1,cs-2,cs-2);
+        ctx.fillStyle='rgba(255,255,255,.3)';ctx.font=`${Math.max(6,cs*.4)}px sans-serif`;ctx.textAlign='center';
+        ctx.fillText('M',x+cs/2,y+cs*.65);
+      }
+      else if(cell===FROZEN){
+        ctx.fillStyle='#80d8ff';ctx.fillRect(x+1,y+1,cs-2,cs-2);
+        ctx.fillStyle='rgba(255,255,255,.2)';
+        ctx.fillRect(x+cs*.2,y+cs*.2,cs*.6,cs*.6);
+      }
+    }
+  }
+
+  // Ghost preview (pattern placement)
+  if(phase==='intervene'&&selectedPattern!==null&&ghostCells.length>0){
+    const col=mode==='defender'?'rgba(0,180,216,.4)':'rgba(255,45,45,.4)';
+    ghostCells.forEach(([gr,gc])=>{
+      if(gr>=0&&gr<ROWS&&gc>=0&&gc<COLS){
+        ctx.fillStyle=col;
+        ctx.fillRect(gc*cs,gr*cs,cs,cs);
+      }
+    });
+  }
+}
+
+// ================================================================
+//  MOUSE HANDLING
+// ================================================================
+let mouseR=-1,mouseC=-1;
+
+canvas.addEventListener('mousemove',(e)=>{
+  const rect=canvas.getBoundingClientRect();
+  const cs=Math.floor(canvas.width/COLS);
+  const c=Math.floor((e.clientX-rect.left)/cs);
+  const r=Math.floor((e.clientY-rect.top)/cs);
+  if(r<0||r>=ROWS||c<0||c>=COLS)return;
+  mouseR=r;mouseC=c;
+
+  // Update ghost
+  if(phase==='intervene'&&selectedPattern!==null){
+    const pat=PATTERNS[selectedPattern];
+    ghostCells=pat.cells.map(([dr,dc])=>[r+dr,c+dc]);
+    const info=document.getElementById('ghost-info');
+    if(info){
+      info.style.display='block';
+      info.textContent=`${pat.name} (💰${pat.cost}) → [${r},${c}]`;
+    }
+    draw();
+  } else {
+    ghostCells=[];
+    const info=document.getElementById('ghost-info');
+    if(info)info.style.display='none';
+  }
+});
+
+canvas.addEventListener('mouseleave',()=>{
+  ghostCells=[];
+  const info=document.getElementById('ghost-info');
+  if(info)info.style.display='none';
+  draw();
+});
+
+canvas.addEventListener('click',(e)=>{
+  if(phase!=='intervene'||gameOver)return;
+  const rect=canvas.getBoundingClientRect();
+  const cs=Math.floor(canvas.width/COLS);
+  const c=Math.floor((e.clientX-rect.left)/cs);
+  const r=Math.floor((e.clientY-rect.top)/cs);
+  if(r<0||r>=ROWS||c<0||c>=COLS)return;
+
+  if(selectedPattern===null)return;
+
+  const pat=PATTERNS[selectedPattern];
+  if(currentCost<pat.cost){
+    addLog('info','❌ コスト不足！');return;
+  }
+
+  // Check if placeable
+  const cells=pat.cells.map(([dr,dc])=>[r+dr,c+dc]);
+  const valid=cells.every(([pr,pc])=>pr>=0&&pr<ROWS&&pc>=0&&pc<COLS&&grid[pr][pc]===EMPTY);
+  if(!valid){
+    addLog('info','❌ 配置できません（空きマスが必要）');return;
+  }
+
+  // Place!
+  const type=placementType;
+  cells.forEach(([pr,pc])=>{
+    grid[pr][pc]=type;
+    if(type===FLAME)flameAge[pr][pc]=0;
+    else waterAge[pr][pc]=0;
+  });
+  currentCost-=pat.cost;
+
+  addLog(mode==='defender'?'water':'fire',`${mode==='defender'?'💧':'🔥'} ${pat.name}を配置 (残コスト: ${currentCost})`);
+
+  computePrediction();
+  updateStats();
+  buildSidebar();
+  draw();
+});
+
+// ================================================================
+//  LOGGING
+// ================================================================
+function addLog(type,msg){
+  const log=document.getElementById('event-log');
+  if(!log)return;
+  const d=document.createElement('div');
+  d.className=`event-item ev-${type}`;
+  d.textContent=`[${turn}日] ${msg}`;
+  log.prepend(d);
+  while(log.children.length>30)log.removeChild(log.lastChild);
+}
+
+// ================================================================
+//  UTILITY
+// ================================================================
+function randInt(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+
+// ================================================================
+//  INIT
+// ================================================================
+document.getElementById('title-coins').textContent=metaCoins;
+renderEncyclopedia();
+
+</script>
+</body>
+</html>
